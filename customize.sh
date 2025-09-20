@@ -267,6 +267,9 @@ set_perm_recursive /data/adb/box_bll/scripts/ 0 3005 0755 0700
 set_perm_recursive /data/adb/box_bll/bin/ 0 3005 0755 0700
 set_perm_recursive /data/adb/box_bll/clash/etc/ 0 0 0755 0644
 set_perm "$service_dir/Surfing_service.sh" 0 0 0700
+set_perm /data/adb/box_bll/bin/tailscale 0 0 0755 u:object_r:system_file:s0
+set_perm /data/adb/box_bll/bin/tailscaled 0 0 0755 u:object_r:system_file:s0
+set_perm_recursive /data/adb/box_bll/tailscale 0 0 0770
 
 chmod ugo+x /data/adb/box_bll/scripts/*
 

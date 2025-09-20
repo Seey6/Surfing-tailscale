@@ -210,7 +210,34 @@ display_bin_status() {
   fi
 }
 
+start_tailscale() {
+  if [ "${enable_tailscale}" = "true" ]; then
+    if [ -f "${tailscale_bin_path}" ]; then
+      log Info "正在启动 tailscaled 守护进程..."
+      nohup busybox setuidgid "${box_user_group}" "${box_path}/bin/tailscaled" --state="${box_path}/tailscale/tailscaled.state" --socket="${box_path}/tailscale/tailscaled.sock" > "${run_path}/tailscaled.log" 2>&1 &
+      
+      # 等待守护进程启动并创建socket
+      sleep 2
+
+      log Info "正在激活 tailscale 连接..."
+      nohup "${tailscale_bin_path}" --socket="${box_path}/tailscale/tailscaled.sock" up > "${run_path}/tailscale_up.log" 2>&1 &
+      return 0
+    else
+      log Error "Tailscale 可执行文件未找到于 ${tailscale_bin_path}"
+      return 1
+    fi
+  fi
+}
+
+stop_tailscale() {
+  if [ "${enable_tailscale}" = "true" ]; then
+    log Warn "正在停止 tailscaled 守护进程."
+    killall tailscaled >> /dev/null 2>&1
+  fi
+}
+
 start_service() {
+  start_tailscale
   if check_permission; then
     log Info "${bin_name} 将以 ${box_user_group} 用户组启动."
     if start_bin; then
@@ -240,6 +267,7 @@ stop_service() {
     display_bin_status
   fi
   rm -f "${pid_file}" >> /dev/null 2>&1
+  stop_tailscale
 }
 
 # create_tun_link() {
@@ -298,6 +326,7 @@ tun_forward_iptables_rules() {
 
 tun_forward_enable() {
   tun_forward_disable
+  ${scripts_dir}/box.tailscale disable
   sleep 1
   echo 1 > /proc/sys/net/ipv4/ip_forward
   echo 2 > /proc/sys/net/ipv4/conf/default/rp_filter
@@ -326,6 +355,7 @@ case "$1" in
       fi
       if wait_bin_listen; then
         tun_forward_enable
+        ${scripts_dir}/box.tailscale enable
       fi
     fi
     ;;
@@ -340,6 +370,7 @@ case "$1" in
     sleep 2
     if wait_bin_listen; then
       tun_forward_enable
+      ${scripts_dir}/box.tailscale enable
     fi
     ;;
   status)

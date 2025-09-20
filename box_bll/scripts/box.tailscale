@@ -1,0 +1,82 @@
+#!/system/bin/sh
+
+export PATH="/data/adb/magisk:/data/adb/ksu/bin:/data/adb/ap/bin:$PATH:/data/data/com.termux/files/usr/bin"
+
+scripts=$(realpath $0)
+scripts_dir=$(dirname ${scripts})
+
+source ${scripts_dir}/box.config
+
+log() {
+export TZ=Asia/Shanghai
+now=$(date +"[%Y-%m-%d %H:%M:%S %Z]")
+case $1 in
+Info)
+[ -t 1 ] && echo -e "\033[1;32m${now} [信息]: $2\033[0m" || echo "${now} [Info]: $2"
+;;
+Warn)
+[ -t 1 ] && echo -e "\033[1;33m${now} [警告]: $2\033[0m" || echo "${now} [Warn]: $2"
+;;
+Error)
+[ -t 1 ] && echo -e "\033[1;31m${now} [错误]: $2\033[0m" || echo "${now} [Error]: $2"
+;;
+*)
+[ -t 1 ] && echo -e "\033[1;30m${now} [$1]: $2\033[0m" || echo "${now} [$1]: $2"
+;;
+esac
+}
+
+start_tailscale_rules() {
+  if [ "${enable_tailscale}" = "true" ]; then
+    log Info "正在为 Tailscale 创建网络规则..."
+    
+    box_user=$(echo ${box_user_group} | awk -F ':' '{print $1}')
+    box_group=$(echo ${box_user_group} | awk -F ':' '{print $2}')
+
+    # 确保 tailscale 接口流量不走 clash
+    iptables -t mangle -I BOX_LOCAL -o ${tailscale_device} -j RETURN
+    ip6tables -t mangle -I BOX_LOCAL -o ${tailscale_device} -j RETURN
+
+    # 为 tailscale 创建独立的路由表
+    ip rule add fwmark ${tailscale_mark_id} table ${tailscale_table_id} pref ${tailscale_table_id}
+    ip route add default dev ${tailscale_device} table ${tailscale_table_id}
+
+    # 标记 tailscale 进程的流量
+    iptables -t mangle -A OUTPUT -m owner --uid-owner ${box_user} --gid-owner ${box_group} -j MARK --set-xmark ${tailscale_mark_id}
+    
+    log Info "Tailscale 网络规则创建完成."
+  fi
+}
+
+stop_tailscale_rules() {
+  if [ "${enable_tailscale}" = "true" ]; then
+    log Warn "正在清理 Tailscale 网络规则..."
+    
+    box_user=$(echo ${box_user_group} | awk -F ':' '{print $1}')
+    box_group=$(echo ${box_user_group} | awk -F ':' '{print $2}')
+
+    iptables -t mangle -D BOX_LOCAL -o ${tailscale_device} -j RETURN 2>/dev/null
+    ip6tables -t mangle -D BOX_LOCAL -o ${tailscale_device} -j RETURN 2>/dev/null
+    
+    ip rule del pref ${tailscale_table_id} 2>/dev/null
+    ip route flush table ${tailscale_table_id} 2>/dev/null
+    
+    iptables -t mangle -D OUTPUT -m owner --uid-owner ${box_user} --gid-owner ${box_group} -j MARK --set-xmark ${tailscale_mark_id} 2>/dev/null
+    
+    log Warn "Tailscale 网络规则清理完成."
+  fi
+}
+
+case "$1" in
+  enable)
+    stop_tailscale_rules
+    start_tailscale_rules
+    ;;
+  disable)
+    stop_tailscale_rules
+    ;;
+  *)
+    log Error "用法: $0 {enable|disable}"
+    exit 1
+    ;;
+esac

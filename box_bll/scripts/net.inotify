@@ -33,6 +33,13 @@ rules_add() {
    done
  }
  
+tailscale_netcheck() {
+ if [ "${enable_tailscale}" = "true" ]; then
+   log Info "网络变化，正在更新 Tailscale 网络状态..."
+   "${tailscale_bin_path}" --socket="${box_path}/tailscale/tailscaled.sock" netcheck > "${run_path}/tailscale_netcheck.log" 2>&1
+ fi
+}
+ 
 if [ "$events" = "w" ]; then
     if [ -f "$BOOT_STABLE_FLAG" ]; then
         last_exec_time=$(stat -c %Y "$BOOT_STABLE_FLAG")
@@ -46,7 +53,8 @@ if [ "$events" = "w" ]; then
  
     sleep 3
     rules_add
- 
+    tailscale_netcheck
+  
     sleep 1
     if [ "$ipv6" = "disable" ]; then
         disable_ipv6
@@ -56,6 +64,7 @@ fi
 if [ "$uptime_sec" -lt 360 ] && [ ! -f "$BOOT_STABLE_FLAG" ]; then
     sleep 60
     rules_add
+    tailscale_netcheck
     touch "$BOOT_STABLE_FLAG"
 fi
  
@@ -65,7 +74,8 @@ if [ ! -f "/data/adb/modules/Surfing/disable" ]; then
     fi
     sleep 10
     rules_add
-    touch "$RULES_ADD_FLAG" 
+    tailscale_netcheck
+    touch "$RULES_ADD_FLAG"
 else
     if [ -f "$RULES_ADD_FLAG" ]; then
         rm -f "$RULES_ADD_FLAG"
