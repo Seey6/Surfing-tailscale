@@ -87,6 +87,10 @@ start_redirect() {
 
   ${iptables} -t nat -I PREROUTING -j BOX_EXTERNAL
   ${iptables} -t nat -I BOX_LOCAL -m owner --uid-owner ${box_user} --gid-owner ${box_group} -j RETURN
+  
+  if [ "${enable_tailscale}" = "true" ]; then
+    ${iptables} -t nat -A BOX_LOCAL -o ${tailscale_device} -j RETURN
+  fi
 
   if [ "${ignore_out_list}" != "" ] ; then
     for ignore in ${ignore_out_list[@]} ; do

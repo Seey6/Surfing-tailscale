@@ -334,6 +334,10 @@ tun_forward_enable() {
 
   probe_tun_index && tun_forward_ip_rules "add"
   probe_tun_device && tun_forward_iptables_rules "-I" && sing_tun_ip_rules "add" && log Info "Tun 热点支持已启用."
+  
+  # 为Tailscale添加策略路由以绕过Clash TUN
+  ${scripts_dir}/box.tailscale enable
+
   return 0
 }
 
@@ -341,6 +345,10 @@ tun_forward_disable() {
   sing_tun_ip_rules "del" >> /dev/null 2>&1
   tun_forward_ip_rules_del >> /dev/null 2>&1
   tun_forward_iptables_rules "-D" >> /dev/null 2>&1
+  
+  # 清理Tailscale的策略路由
+  ${scripts_dir}/box.tailscale disable
+
   log Warn "Tun 热点支持已禁用."
 }
 
